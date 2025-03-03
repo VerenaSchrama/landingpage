@@ -1,0 +1,2 @@
+main contains API, which runs remotely at Render via Git (landingpage repository).
+request contains code to ask API and get response (and later store response)
