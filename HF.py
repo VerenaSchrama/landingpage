@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-import requests
+import request
 
 app = FastAPI()
 
@@ -10,7 +10,7 @@ HEADERS = {"Authorization": "Bearer YOUR_HF_API_KEY"}  # Replace with your API k
 @app.get("/generate")
 def generate(prompt: str):
     payload = {"inputs": prompt}
-    response = requests.post(API_URL, headers=HEADERS, json=payload)
+    response = request.post(API_URL, headers=HEADERS, json=payload)
 
     if response.status_code == 200:
         return {"response": response.json()[0]["generated_text"]}
