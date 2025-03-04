@@ -4,7 +4,8 @@ url = "http://127.0.0.1:8000/getRecommendations"
 data = {
     "trimester": "2",
     "dietaryRestrictions": "gluten",
-    "nutritionGoals": "more fiber"
+    "nutritionGoals": "more fiber",
+    "dislikes": "mushrooms"
 }
 
 response = requests.post(url, json=data)

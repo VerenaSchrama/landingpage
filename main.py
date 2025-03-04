@@ -1,79 +1,95 @@
-import os
-import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import requests
+import os
 from dotenv import load_dotenv
+import uuid  # Generate unique IDs
 
 # Load environment variables
 load_dotenv()
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 
 if not MISTRAL_API_KEY:
-    raise ValueError("❌ ERROR: Missing MISTRAL_API_KEY! Set it in Render's environment variables.")
+    raise ValueError("❌ ERROR: Missing MISTRAL_API_KEY! Set it in the .env file or Render's environment variables.")
+
+# Mistral API settings
+MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
+HEADERS = {
+    "Authorization": f"Bearer {MISTRAL_API_KEY}",
+    "Content-Type": "application/json"
+}
 
 # Initialize FastAPI
-app = FastAPI(
-    title="Pregnancy Nutrition API",
-    description="AI-powered food recommendations",
-    version="1.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
+app = FastAPI()
 
-# ✅ FIX: Add a root (`/`) route
-@app.get("/")
-def home():
-    return {"message": "FastAPI with Mistral AI is running on Render!"}
-
-# ✅ Health check
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
+# Temporary in-memory storage (for MVP testing)
+user_db = {}  # Stores user input: { user_id: user_data }
+recommendations_db = {}  # Stores AI-generated responses: { user_id: recommendations }
 
 # Define input model
-class QuizInput(BaseModel):
+class UserInput(BaseModel):
     trimester: str
     dietaryRestrictions: str
     nutritionGoals: str
+    dislikes: str
 
+
+# 🔹 1️⃣ POST: Store User Input
+@app.post("/userInput", status_code=201)
+async def save_user_input(data: UserInput):
+    """Store user pregnancy preferences and return a user ID."""
+    
+    # Generate a unique user ID
+    user_id = str(uuid.uuid4())
+
+    # Save input to database
+    user_db[user_id] = data.dict()
+
+    # Process AI recommendation immediately
+    recommendations_db[user_id] = process_ai_recommendations(user_db[user_id])
+
+    return {"user_id": user_id, "message": "User input stored. Use GET /getRecommendations/{user_id} to retrieve recommendations."}
+
+
+# 🔹 2️⃣ GET: Retrieve AI-Generated Recommendations
+@app.get("/getRecommendations/{user_id}")
+async def fetch_recommendations(user_id: str):
+    """Retrieve stored recommendations using user ID."""
+
+    if user_id not in recommendations_db:
+        raise HTTPException(status_code=404, detail="Recommendations not found. Try submitting user input first.")
+
+    return {"user_id": user_id, "recommendations": recommendations_db[user_id]}
+
+
+# 🔹 AI Processing Function
+def process_ai_recommendations(user_data):
+    """Send user input to Mistral AI and return structured recommendations."""
+    
+    # Create a structured AI prompt
+    prompt = f"""
+    A pregnant woman in trimester {user_data['trimester']} has the following dietary restriction: {user_data['dietaryRestrictions']} 
+    and doesnt eat: {user_data['dislikes']}. She has the following nutrition goals: {user_data['nutritionGoals']}. 
+    Suggest 3 nutritious food items (pulses & grains) that fit her needs.
+    Explain why each food is beneficial in structured JSON format:
+    [
+        {{"food": "Food Name", "reason": "Health benefit"}}
+    ]
+    """
+
+    # Call Mistral AI API
+    response = requests.post(
+        MISTRAL_URL,
+        headers=HEADERS,
+        json={"model": "mistral-medium", "messages": [{"role": "user", "content": prompt}]}
+    )
+
+    if response.status_code != 200:
+        return {"error": "Mistral API Error", "details": response.text}
+
+    return response.json()["choices"][0]["message"]["content"]
+
+# 🔹 Optional: Root Route for API Status
 @app.get("/")
 def home():
-    return {"message": "FastAPI is running on Render!"}
-
-# ✅ API endpoint for recommendations
-@app.post("/getRecommendations")
-async def get_recommendations(data: QuizInput):
-    """Fetch AI-generated food recommendations."""
-    prompt = f"""
-    A pregnant woman in trimester {data.trimester} has dietary restriction: {data.dietaryRestrictions} 
-    and nutrition goal: {data.nutritionGoals}. Suggest 3 nutritious food items (pulses & grains).
-    Return results in structured JSON:
-    {{
-        "recommendations": [
-            {{"food": "Food Name", "reason": "Health benefit"}},
-            {{"food": "Food Name", "reason": "Health benefit"}},
-            {{"food": "Food Name", "reason": "Health benefit"}}
-        ]
-    }}
-    """
-    payload = {
-        "model": "mistral-7b-instruct",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7
-    }
-
-    response = requests.post("https://api.mistral.ai/v1/chat/completions", headers={
-        "Authorization": f"Bearer {MISTRAL_API_KEY}",
-        "Content-Type": "application/json"
-    }, json=payload)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        raise HTTPException(status_code=response.status_code, detail=response.text)
-
-# Ensure correct port for Render
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    return {"message": "FastAPI with Mistral AI is running on Render!"}

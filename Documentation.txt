@@ -1,2 +1,6 @@
 main contains API, which runs remotely at Render via Git (landingpage repository).
 request contains code to ask API and get response (and later store response)
+
+The user submits their input via POST /userInput, and we store it.
+The AI processes the input asynchronously, then the user can retrieve the results using GET /getRecommendations/{user_id}.
+This structure separates input collection from AI processing, making it scalable and efficient.
