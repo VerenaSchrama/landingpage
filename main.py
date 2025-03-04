@@ -33,6 +33,10 @@ class UserInput(BaseModel):
     nutritionGoals: str
     dislikes: str
 
+#To have a get for browser access
+@app.get("/testUserInput")
+def test_user_input():
+    return {"message": "Use POST /userInput to submit data"}
 
 # 🔹 1️⃣ POST: Store User Input
 @app.post("/userInput", status_code=201)
